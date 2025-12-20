@@ -1,10 +1,11 @@
 <template>
-  <div v-if="isLoading">Loading...</div>
+  <Loader v-if="isLoading" />
 
   <NuxtPage />
 </template>
 
 <script setup>
+import Loader from "../../src/runtime/components/Loader.vue";
 import { useLoader } from "../../src/runtime/composables/useLoader";
 
 const config = useLoader();
