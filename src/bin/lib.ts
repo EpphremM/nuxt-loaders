@@ -1,0 +1,167 @@
+import { existsSync, mkdirSync, unlinkSync } from "fs";
+import { readFile, writeFile } from "fs/promises";
+import { join } from "path";
+import type { LoadersConfig, LoadersIndex } from "./types";
+import { logErrorCli, logWarnCli } from "./log";
+
+const ALLOWED_OPERATIONS = ["add", "remove"]
+const REMOTE_TEMPLATE_STORE = "https://raw.githubusercontent.com/haileabt/nuxt-loaders/feat/cli/src/templates"
+
+export const operationAllowed = (operation: string) => {
+    if (!ALLOWED_OPERATIONS.includes(operation)) {
+        logErrorCli(`Invalid operation: ${operation}`);
+        return false;
+    }
+
+    return true;
+}
+
+
+export const getLoadersConfig = async () => {
+    const path = join(process.cwd(), 'loaders.config.json');
+
+    if (!existsSync(path)) {
+        logErrorCli(`No loaders.config.json found at ${path}`);
+        return null;
+    }
+
+    const config = await readFile(path, "utf-8");
+    return JSON.parse(config) as LoadersConfig;
+}
+
+export const addLoaderToConfig = async (slug: string, loaderName: string, version: string) => {
+    const path = join(process.cwd(), 'loaders.config.json');
+
+    if (!existsSync(path)) {
+        logErrorCli(`No loaders.config.json found at ${path}`);
+        return null;
+    }
+
+    const configFile = await readFile(path, "utf-8");
+    const config = JSON.parse(configFile) as LoadersConfig;
+
+    config.installedLoaders[slug] = {
+        file: loaderName,
+        version: version
+    }
+
+    const newConfigFile = JSON.stringify(config);
+    await writeFile(path, newConfigFile);
+}
+
+export const removeLoaderFromConfig = async (slug: string) => {
+    const path = join(process.cwd(), 'loaders.config.json');
+
+    if (!existsSync(path)) {
+        logErrorCli(`No loaders.config.json found at ${path}`);
+        return null;
+    }
+
+    const configFile = await readFile(path, "utf-8");
+    const config = JSON.parse(configFile) as LoadersConfig;
+
+    delete config.installedLoaders[slug];
+
+    const newConfigFile = JSON.stringify(config);
+    await writeFile(path, newConfigFile);
+
+    return;
+}
+
+
+export const getRemoteLoader = async (slug: string, index: LoadersIndex) => {
+    const loader = index[slug];
+    if (!loader) {
+        logErrorCli(`No loader found for slug: ${slug}`);
+        return null;
+    }
+
+    const res = await fetch(`${REMOTE_TEMPLATE_STORE}/${loader.file}`);
+    if (!res.ok) {
+        logErrorCli(`Failed to read remote loader: ${slug}`);
+        return null;
+    }
+
+    return res.text();
+}
+
+
+export const getTemplatesIndex = async () => {
+    const res = await fetch(`${REMOTE_TEMPLATE_STORE}/index.json`);
+    if (!res.ok) {
+        logErrorCli(`Failed to read remote loader index`);
+        return null;
+    }
+
+    const indexJson = await res.json()
+
+    return JSON.parse(indexJson) as LoadersIndex;
+}
+
+export const handleAddLoader = async (slug: string, loadersConfig: LoadersConfig, index: LoadersIndex) => {
+    let configSync = true;
+
+    if (!index[slug]) {
+        logErrorCli(`No loader found for slug: ${slug}`);
+        return;
+    }
+
+    const loadersPath = join(process.cwd(), loadersConfig.loadersDir);
+
+    if (!existsSync(loadersPath)) {
+        mkdirSync(loadersPath);
+    }
+
+    const loader = loadersConfig.installedLoaders[slug];
+    if (loader) {
+        if (existsSync(`${loadersPath}/${loader.file}`)) {
+            logErrorCli(`Loader already installed: ${slug}`);
+            return;
+        }
+        configSync = false;
+    }
+
+
+    const remoteLoader = await getRemoteLoader(slug, index);
+    if (!remoteLoader) {
+        logErrorCli("Error finding loader", slug);
+        return;
+    }
+
+
+
+    const loaderPath = join(loadersPath, index[slug]!.file);
+
+    if (!configSync) {
+        await addLoaderToConfig(slug, index[slug]!.file, index[slug]!.version);
+    }
+
+    await writeFile(loaderPath, remoteLoader);
+}
+
+export const handleRemoveLoader = async (slug: string, loadersConfig: LoadersConfig, index: LoadersIndex) => {
+    let configSync = true;
+
+    const loadersPath = join(process.cwd(), loadersConfig.loadersDir);
+
+    if (!existsSync(loadersPath)) {
+        logWarnCli(`Loaders path '${loadersPath}' not found. Skipping loader deletion.`)
+    }
+
+    const loader = loadersConfig.installedLoaders[slug];
+    if (!loader) {
+        if (existsSync(`${loadersPath}/${index[slug]?.file}`)) {
+            configSync = false;
+        }
+        return;
+    }
+
+    if (existsSync(`${loadersPath}/${loader.file}`)) {
+        if (!configSync) {
+            await removeLoaderFromConfig(slug);
+        }
+        unlinkSync(`${loadersPath}/${loader.file}`);
+    } else {
+        const res = await removeLoaderFromConfig(slug)
+    }
+}
