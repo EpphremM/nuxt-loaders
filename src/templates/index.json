@@ -1,6 +1,6 @@
 {
     "basic": {
-        "name": "BasicLoader.vue",
+        "file": "BasicLoader.vue",
         "version": "v1.0.0"
     }
 }

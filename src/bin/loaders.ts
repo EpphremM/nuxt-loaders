@@ -1,10 +1,10 @@
 import { readdir } from 'fs/promises';
 import { getLoadersConfig, getTemplatesIndex, handleAddLoader, handleRemoveLoader, operationAllowed } from './lib';
-import { logErrorCli } from './log';
+import { logErrorCli, logInfoCli } from './log';
 
 const dir = await readdir(process.cwd());
 
-if (!dir.includes("nuxt.config.ts") || !dir.includes("nuxt.config.js")) {
+if (!dir.includes("nuxt.config.ts") && !dir.includes("nuxt.config.js")) {
     logErrorCli('Not a Nuxt project. Please run this command in the root directory of your Nuxt project.');
     process.exit(1);
 }
@@ -32,6 +32,7 @@ if (loaders.length < 1) {
     process.exit(1);
 }
 
+logInfoCli(`Starting nuxt-loaders CLI...`);
 
 const loadersConfig = await getLoadersConfig()
 if (!loadersConfig) {
@@ -61,3 +62,5 @@ for (let loader of loaders) {
         process.exit(1)
     }
 }
+
+logInfoCli(`Operation ${operation} completed successfully.`);

@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, unlinkSync } from "fs";
 import { readFile, writeFile } from "fs/promises";
 import { join } from "path";
 import type { LoadersConfig, LoadersIndex } from "./types";
-import { logErrorCli, logWarnCli } from "./log";
+import { logErrorCli, logWarnCli, logInfoCli } from "./log";
 
 const ALLOWED_OPERATIONS = ["add", "remove"]
 const REMOTE_TEMPLATE_STORE = "https://raw.githubusercontent.com/haileabt/nuxt-loaders/feat/cli/src/templates"
@@ -93,12 +93,13 @@ export const getTemplatesIndex = async () => {
         return null;
     }
 
-    const indexJson = await res.json()
+    const indexJson = await res.text()
 
     return JSON.parse(indexJson) as LoadersIndex;
 }
 
 export const handleAddLoader = async (slug: string, loadersConfig: LoadersConfig, index: LoadersIndex) => {
+    logInfoCli(`Adding loader: ${slug}...`);
     let configSync = true;
 
     if (!index[slug]) {
@@ -110,6 +111,7 @@ export const handleAddLoader = async (slug: string, loadersConfig: LoadersConfig
 
     if (!existsSync(loadersPath)) {
         mkdirSync(loadersPath);
+        logInfoCli(`Created loaders directory at ${loadersPath}`);
     }
 
     const loader = loadersConfig.installedLoaders[slug];
@@ -134,12 +136,15 @@ export const handleAddLoader = async (slug: string, loadersConfig: LoadersConfig
 
     if (!configSync) {
         await addLoaderToConfig(slug, index[slug]!.file, index[slug]!.version);
+        logInfoCli(`Updated config for loader: ${slug}`);
     }
 
     await writeFile(loaderPath, remoteLoader);
+    logInfoCli(`Successfully added loader: ${slug}`);
 }
 
 export const handleRemoveLoader = async (slug: string, loadersConfig: LoadersConfig, index: LoadersIndex) => {
+    logInfoCli(`Removing loader: ${slug}...`);
     let configSync = true;
 
     const loadersPath = join(process.cwd(), loadersConfig.loadersDir);
@@ -152,16 +157,22 @@ export const handleRemoveLoader = async (slug: string, loadersConfig: LoadersCon
     if (!loader) {
         if (existsSync(`${loadersPath}/${index[slug]?.file}`)) {
             configSync = false;
+        } else {
+            logWarnCli(`Loader '${slug}' not found in config or file system.`);
+            return;
         }
-        return;
     }
 
-    if (existsSync(`${loadersPath}/${loader.file}`)) {
+    if (loader && existsSync(`${loadersPath}/${loader.file}`)) {
         if (!configSync) {
             await removeLoaderFromConfig(slug);
+            logInfoCli(`Removed loader '${slug}' from config.`);
         }
         unlinkSync(`${loadersPath}/${loader.file}`);
+        logInfoCli(`Deleted loader file: ${loader.file}`);
     } else {
         const res = await removeLoaderFromConfig(slug)
+        logInfoCli(`Removed loader '${slug}' from config.`);
     }
+    logInfoCli(`Successfully removed loader: ${slug}`);
 }
