@@ -2,5 +2,13 @@
     "basic": {
         "file": "BasicLoader.vue",
         "version": "v1.0.0"
+    },
+    "circular": {
+        "file": "CircularLoader.vue",
+        "version": "v1.0.0"
+    },
+    "dots": {
+        "file": "DotsLoader.vue",
+        "version": "v1.0.0"
     }
 }
