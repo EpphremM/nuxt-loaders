@@ -2,6 +2,10 @@ import { defineNuxtModule, addPlugin, createResolver, addComponentsDir, addImpor
 import tailwindcss from "@tailwindcss/vite";
 import { getDefaultLoader, validateLoaderRules } from "./runtime/lib/utils/route-rules";
 import { logInfo } from "./runtime/lib/log";
+import { existsSync } from "fs";
+import { writeFile } from "fs/promises";
+
+const DEFAULT_LOADERS_PATH = "app/components/loaders"
 
 
 export interface ModuleOptions {
@@ -33,16 +37,24 @@ export default defineNuxtModule<ModuleOptions>({
     const path = await import('path');
     const loadersDirPath = options.loadersDir
       ? path.resolve(nuxt.options.rootDir, options.loadersDir)
-      : path.resolve(nuxt.options.rootDir, 'app/components/loaders');
+      : path.resolve(nuxt.options.rootDir, DEFAULT_LOADERS_PATH);
+
+    const configExists = existsSync('loaders.config.json');
+
+    if (!configExists) {
+      await writeFile('loaders.config.json', JSON.stringify({
+        loadersDir: options.loadersDir ?? DEFAULT_LOADERS_PATH,
+        installedLoaders: {}
+      }))
+    }
 
     logInfo('Registering loaders directory:', loadersDirPath);
 
     const { resolveFiles, addTemplate } = await import('@nuxt/kit');
 
-    // Find all loader components
+
     const loaderFiles = await resolveFiles(loadersDirPath, '**/*.vue');
 
-    // Generate a plugin to register these components synchronously
     const template = addTemplate({
       filename: 'loader-plugin.mjs',
       getContents: () => {
