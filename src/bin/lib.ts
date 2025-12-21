@@ -40,12 +40,19 @@ export const addLoaderToConfig = async (slug: string, loaderName: string, versio
     const configFile = await readFile(path, "utf-8");
     const config = JSON.parse(configFile) as LoadersConfig;
 
-    config.installedLoaders[slug] = {
-        file: loaderName,
-        version: version
+    const newInstalledLoaders = {
+        ...config.installedLoaders, [slug]: {
+            file: loaderName,
+            version: version
+        }
     }
 
-    const newConfigFile = JSON.stringify(config);
+    const newConfig = {
+        ...config,
+        installedLoaders: { ...newInstalledLoaders }
+    }
+
+    const newConfigFile = JSON.stringify(newConfig);
     await writeFile(path, newConfigFile);
 }
 
@@ -134,7 +141,10 @@ export const handleAddLoader = async (slug: string, loadersConfig: LoadersConfig
 
     const loaderPath = join(loadersPath, index[slug]!.file);
 
-    if (!configSync) {
+    if (!configSync && loader) {
+        await addLoaderToConfig(slug, index[slug]!.file, index[slug]!.version);
+        logInfoCli(`Updated config for loader: ${slug}`);
+    } else if (!loader) {
         await addLoaderToConfig(slug, index[slug]!.file, index[slug]!.version);
         logInfoCli(`Updated config for loader: ${slug}`);
     }
