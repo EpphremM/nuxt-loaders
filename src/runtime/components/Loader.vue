@@ -1,27 +1,26 @@
 <template>
   <div>
-    <BasicLoader />
+    <component v-if="loaderName" :is="loaderName" />
   </div>
 </template>
 
+
 <script lang="ts" setup>
-import { onMounted } from "vue";
-import BasicLoader from "../../templates/BasicLoader.vue";
+import { useNuxtApp } from '#app';
+import { computed } from 'vue';
+import { logWarn } from '../../lib/log';
 
-const log = () => {
-  console.log("this is the loader");
-};
+const nuxt = useNuxtApp();
 
-onMounted(log);
+const loaderName = computed(() => {
+  const name = nuxt.$config.public.loaders._activeLoader || nuxt.$config.public.loaders._defaultLoader;
+
+  if (!name || !name.trim()) {
+    logWarn("No loaders have been set.");
+    return null;
+  }
+
+  return name;
+});
+
 </script>
-
-<style scoped lang="css">
-div {
-  display: flex;
-  background-color: white;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
-  width: 100%;
-}
-</style>

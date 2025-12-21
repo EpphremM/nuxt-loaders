@@ -1,4 +1,5 @@
 import { defineNuxtPlugin, type RuntimeNuxtHooks } from '#app'
+import { getActiveLoader } from './lib/utils/route-rules';
 import { useLoader } from './composables/useLoader';
 
 
@@ -9,14 +10,18 @@ export default defineNuxtPlugin((nuxt) => {
   const states = useLoader();
   const { isLoading } = states;
 
-  const autoSetup = nuxt.$config.public.loaders.autoSetup;
+  const ctx = nuxt.$config.public.loaders;
+  const { autoSetup, routeRules } = ctx;
+
   if (autoSetup) {
     nuxt.hooks.beforeEach((e) => {
       if (pageLoadingStartHooks.includes(e.name)) {
-        console.log("Page loading started");
+        const newActive = getActiveLoader(routeRules, nuxt._route.fullPath);
+        if (newActive && newActive !== ctx._activeLoader) {
+          ctx._activeLoader = newActive;
+        }
         isLoading.value = true;
       } else if (pageLoadingEndHooks.includes(e.name)) {
-        console.log("Page loading ended");
         isLoading.value = false;
       }
     });

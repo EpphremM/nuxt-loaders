@@ -1,8 +1,15 @@
-import { defineNuxtModule, addPlugin, createResolver } from "@nuxt/kit";
+import { defineNuxtModule, addPlugin, createResolver, addComponentsDir, addImportsDir } from "@nuxt/kit";
+import tailwindcss from "@tailwindcss/vite";
+import { getDefaultLoader, validateLoaderRules } from "./runtime/lib/utils/route-rules";
+import { logInfo } from "./runtime/lib/log";
 
 
 export interface ModuleOptions {
   autoSetup: boolean;
+  loadersDir?: string;
+  routeRules: Record<string, string>
+  _activeLoader: string
+  _defaultLoader: string
 }
 
 export default defineNuxtModule<ModuleOptions>({
@@ -10,13 +17,76 @@ export default defineNuxtModule<ModuleOptions>({
     name: "nuxt-loaders",
     configKey: "loaders",
   },
+
   defaults: {
-    autoSetup: true
+    autoSetup: true,
+    routeRules: {},
+    _defaultLoader: "",
+    _activeLoader: ""
   },
-  setup(options, nuxt) {
+  async setup(options, nuxt) {
     const resolver = createResolver(import.meta.url);
 
-    nuxt.options.runtimeConfig.public.loaders = { ...options };
+    nuxt.options.css ??= []
+    nuxt.options.css.push(resolver.resolve("./runtime/tailwind.css"));
+
+    const path = await import('path');
+    const loadersDirPath = options.loadersDir
+      ? path.resolve(nuxt.options.rootDir, options.loadersDir)
+      : path.resolve(nuxt.options.rootDir, 'app/components/loaders');
+
+    logInfo('Registering loaders directory:', loadersDirPath);
+
+    const { resolveFiles, addTemplate } = await import('@nuxt/kit');
+
+    // Find all loader components
+    const loaderFiles = await resolveFiles(loadersDirPath, '**/*.vue');
+
+    // Generate a plugin to register these components synchronously
+    const template = addTemplate({
+      filename: 'loader-plugin.mjs',
+      getContents: () => {
+        const imports = loaderFiles.map((file, index) => {
+          const name = file.split('/').pop()?.replace('.vue', '') || `Loader${index}`;
+          return `import ${name} from '${file}'`;
+        }).join('\n');
+
+        const registrations = loaderFiles.map((file, index) => {
+          const name = file.split('/').pop()?.replace('.vue', '') || `Loader${index}`;
+          return `nuxtApp.vueApp.component('${name}', ${name})`;
+        }).join('\n');
+
+        return `
+import { defineNuxtPlugin } from '#app'
+${imports}
+
+export default defineNuxtPlugin((nuxtApp) => {
+  ${registrations}
+})
+        `;
+      }
+    });
+
+    addPlugin(template.dst);
+
+    addComponentsDir({
+      path: resolver.resolve("./runtime/components"),
+      global: true,
+    });
+
+    addImportsDir(resolver.resolve("./runtime/composables"))
+
+    nuxt.options.vite.plugins ??= []
+    nuxt.options.vite.plugins.push(tailwindcss())
+
+    const validatedLoaderRules = validateLoaderRules(options.routeRules);
+
+
+    nuxt.options.runtimeConfig.public.loaders = { ...options, routeRules: validatedLoaderRules, loadersDir: loadersDirPath };
+    if (options.routeRules && Object.keys(options.routeRules).length > 0) {
+      nuxt.options.runtimeConfig.public.loaders._activeLoader = getDefaultLoader(validatedLoaderRules) ?? "";
+    }
+    nuxt.options.runtimeConfig.public.loaders._defaultLoader = getDefaultLoader(validatedLoaderRules) ?? "";
 
     addPlugin(resolver.resolve("./runtime/plugin"));
   },
