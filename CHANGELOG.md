@@ -1,5 +1,9 @@
 
 
+## v1.0.1
+
+[compare changes](https://github.com/haileabt/nuxt-loaders/compare/v1.0.1...v1.0.1)
+
 ## ...main
 
 
